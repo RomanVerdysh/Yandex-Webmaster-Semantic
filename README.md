@@ -1,3 +1,5 @@
+![image](https://github.com/user-attachments/assets/c4c140bf-0f5d-460c-930d-99c42290d4cc)
+
 # Yandex Webmaster Semantic
 
 Скрипт парсит по API из Яндекс Вебмастера все запросы и данные по списку урлов и закидывает в таблицу. 
