@@ -310,12 +310,12 @@ def forecast_clicks(average_position, average_ctr_per_position, total_demand, to
         forecast_1 = round(ctr_1_value * total_demand)
     if average_position > 3:
         forecast_3 = round(ctr_3_value * total_demand)
+    if average_position > 5:
+        forecast_5 = round(ctr_5_value * total_demand)
     else:
         forecast_1 = total_clicks
         forecast_3 = total_clicks
-        forecast_5 = total_clicks
-    if average_position > 5:
-        forecast_5 = round(ctr_5_value * total_demand)
+        forecast_5 = total_clicks    
     
     return forecast_1, forecast_3, forecast_5
 
