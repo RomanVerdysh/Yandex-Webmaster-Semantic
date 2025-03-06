@@ -14,3 +14,11 @@
 5) Запускаем скрипт
 
 Удаляйте 3 результирующие таблицы перед каждым новым запуском.
+
+# Kill duplicates from Yandex Webmaster Semantic
+Просто запустите скрипт и он сделает из такого:
+![image](https://github.com/user-attachments/assets/fa1d0800-1e2a-4d07-9337-4c9eeb54bda1)
+такое:
+![image](https://github.com/user-attachments/assets/604b992e-f5f0-4205-914f-7061f55a2d8c)
+
+Т.е. все дубли, перестановки, разную морфологию и т.д. проссумирует в лучший из вариантов запроса (по максимальному спросу).
