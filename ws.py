@@ -5,10 +5,13 @@ from urllib.parse import urlparse
 from collections import defaultdict
 import os
 import re
+import pandas as pd
 
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
+
+what_we_do = "Сбор URL"
 
 def read_access_token(file_path):
     try:
@@ -32,7 +35,7 @@ OUTPUT_CSV = 'query_analytics.csv'
 
 def load_brand_names(file_path):
     try:
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, 'r', encoding='utf-8-sig') as file:
             brands = [line.strip().lower() for line in file]
         return brands
     except Exception as e:
@@ -41,7 +44,7 @@ def load_brand_names(file_path):
 
 def load_stop_words(file_path):
     try:
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, 'r', encoding='utf-8-sig') as file:
             stop_words = [line.strip().lower() for line in file]
         return stop_words
     except Exception as e:
@@ -127,7 +130,7 @@ def get_popular_queries_ctr(user_id, host_id):
         return None
 
 def save_ctr_to_csv(ctr_by_position, output_file):
-    with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(output_file, 'w', newline='', encoding='utf-8-sig') as csvfile:
         fieldnames = ['Position', 'Average CTR']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
         writer.writeheader()
@@ -169,7 +172,34 @@ def process_site_ctr(url, hosts, user_id, output_file):
 
     return host_id
 
+def update_urls_from_yandex_api(api_token, host_id):
+    # Define the path to the urls.txt file
+    urls_file_path = 'urls.txt'
 
+    # Read the contents of urls.txt
+    with open(urls_file_path, 'r', encoding='utf-8-sig') as file:
+        lines = file.readlines()
+
+    # Check if the file contains only one line with a domain
+    if len(lines) == 1 and '.' in lines[0] and not lines[0].startswith(('http://', 'https://')):
+        domain = lines[0].strip()
+
+        # Make a request to the Yandex Webmaster API to get URLs
+        url = f'https://api.webmaster.yandex.net/v4/user/{host_id}/hosts/{domain}/urls/'
+        headers = {'Authorization': f'OAuth {api_token}'}
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            urls_data = response.json()
+            urls = [url_info['url'] for url_info in urls_data['urls']]
+
+            # Write the retrieved URLs to urls.txt
+            with open(urls_file_path, 'w', encoding='utf-8-sig') as file:
+                file.write('\n'.join(urls))
+        else:
+            print(f"Failed to retrieve URLs: {response.status_code}")
+    else:
+        print("The file urls.txt does not contain only a single domain line or is already filled with URLs.")
 
 def get_query_analytics(user_id, host_id, target_url):
     headers = {
@@ -271,7 +301,7 @@ def calculate_average_ctr_per_position(query_analytics):
 def read_ctr_from_csv(file_path):
     ctr_data = {}
     try:
-        with open(file_path, 'r', encoding='utf-8') as csvfile:
+        with open(file_path, 'r', encoding='utf-8-sig') as csvfile:
             reader = csv.DictReader(csvfile, delimiter=';')
             for row in reader:
                 position = int(row['Position'])
@@ -327,9 +357,9 @@ def read_urls_from_file(file_path):
     return [url.strip() for url in urls if url.strip()]
 
 def save_results_to_csv(results, output_file, brands, stop_words):
-    with open(output_file, 'a', newline='', encoding='utf-8') as csvfile:
+    with open(output_file, 'a', newline='', encoding='utf-8-sig') as csvfile:
         fieldnames = ['URL', 'Запрос', 'Показы', 'Клики', 'Ср. Позиция', 'Ср. CTR', 'Спрос', '% от Спроса', 
-                      'Прогноз кликов TOP-1', 'Прогноз кликов TOP-3', 'Прогноз кликов TOP-5', 'Брендовый', 'Стоп-слова']
+                      'Прогноз кликов TOP-1', 'Прогноз кликов TOP-3', 'Прогноз кликов TOP-5', 'Брендовый', 'Стоп-слова', 'Новый']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
         if csvfile.tell() == 0:
             writer.writeheader()
@@ -357,7 +387,7 @@ def save_results_to_csv(results, output_file, brands, stop_words):
     # print(f"Результаты сохранены в {output_file}")
 
 def save_ctr_to_csv(average_ctr_per_position, output_file):
-    with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(output_file, 'w', newline='', encoding='utf-8-sig') as csvfile:
         fieldnames = ['Position', 'Average CTR']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
         writer.writeheader()
@@ -366,7 +396,7 @@ def save_ctr_to_csv(average_ctr_per_position, output_file):
             writer.writerow({'Position': position, 'Average CTR': f"{average_ctr:.2f}".replace('.', ',')})
     # print(f"Средний CTR для каждой позиции сохранен в {output_file}")
 
-def convert_csv_encoding(input_file, output_file, from_encoding='utf-8', to_encoding='cp1251'):
+def convert_csv_encoding(input_file, output_file, from_encoding='utf-8-sig', to_encoding='cp1251'):
     with open(input_file, 'r', encoding=from_encoding) as infile, open(output_file, 'w', encoding=to_encoding, newline='') as outfile:
         reader = csv.reader(infile, delimiter=';')
         writer = csv.writer(outfile, delimiter=';')
@@ -385,6 +415,10 @@ def process_url(url, hosts, user_id, output_file, brands, stop_words):
         return None
 
     query_analytics = get_query_analytics(user_id, host_id, urlparse(url).path)
+    if query_analytics is None:
+        print(f"Не удалось получить аналитику запросов для URL: {url}")
+        return host_id
+        
     average_ctr_per_position = calculate_average_ctr_per_position(query_analytics)
     if query_analytics:
         formatted_data = format_query_analytics(query_analytics)
@@ -410,6 +444,42 @@ def process_url(url, hosts, user_id, output_file, brands, stop_words):
 
     return host_id
 
+def get_project_csv_path(urls_file, projects_folder):
+    with open(urls_file, 'r') as f:
+        first_url = f.readline().strip()
+    domain = urlparse(first_url).netloc
+    project_csv = os.path.join(projects_folder, f"{domain}.csv")
+    print(f"Домен: {domain}")
+    return project_csv
+
+def mark_new_queries(query_analytics_csv, project_csv):
+    try:
+        # Чтение столбца "Запрос" из файла query_analytics.csv
+        query_df = pd.read_csv(query_analytics_csv, encoding='utf-8-sig', delimiter=';', on_bad_lines='skip')
+        
+        if 'Запрос' not in query_df.columns:
+            print(f"В файле {query_analytics_csv} не найден столбец 'Запрос'. Найдены столбцы: {query_df.columns}")
+            return
+
+        # Чтение столбца "Запрос" из файла project_csv
+        project_df = pd.read_csv(project_csv, encoding='utf-8-sig', delimiter=';', on_bad_lines='skip')
+        
+        if 'Запрос' not in project_df.columns:
+            print(f"В файле {project_csv} не найден столбец 'Запрос'. Найдены столбцы: {project_df.columns}")
+            return
+        
+        # Создание множества запросов из файла проекта
+        project_queries = set(project_df['Запрос'].astype(str))
+
+        # Добавляем столбец "Новый" в query_df
+        query_df['Новый'] = query_df['Запрос'].apply(lambda x: 1 if x not in project_queries else 0)
+
+        # Сохранение результата обратно в query_analytics.csv
+        query_df.to_csv(query_analytics_csv, index=False, encoding='utf-8-sig', sep=';')
+
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
+
 def main():
     user_id = get_user_id()
     if not user_id:
@@ -430,6 +500,8 @@ def main():
     brands = load_brand_names('brand.txt')
     stop_words = load_stop_words('stopwords.txt')
 
+    #  update_urls_from_yandex_api(ACCESS_TOKEN, "")    
+
     # Список для хранения всех данных CTR
     all_ctr_data = defaultdict(lambda: {'clicks': 0, 'impressions': 0})
 
@@ -442,12 +514,16 @@ def main():
             host_id = process_url(url, hosts, user_id, OUTPUT_CSV, brands, stop_words)
             if host_id:
                 query_analytics = get_query_analytics(user_id, host_id, urlparse(url).path)
-                if query_analytics:
+                if query_analytics:  # Проверка на None
                     average_ctr_per_position = calculate_average_ctr_per_position(query_analytics)
                     for position, data in average_ctr_per_position.items():
                         all_ctr_data[position]['clicks'] += data['clicks']
                         all_ctr_data[position]['impressions'] += data['impressions']
 
+    # Обновляем столбец с новыми запросами
+    project_csv = get_project_csv_path(URLS_FILE, "Projects")
+    mark_new_queries("query_analytics.csv", project_csv)
+
 if __name__ == "__main__":
     main()
-    convert_csv_encoding('query_analytics.csv', 'query_analytics_cp1251.csv', from_encoding='utf-8', to_encoding='cp1251')
+    convert_csv_encoding('query_analytics.csv', 'query_analytics_cp1251.csv', from_encoding='utf-8-sig', to_encoding='cp1251')
